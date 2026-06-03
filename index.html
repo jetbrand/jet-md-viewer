@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Previewer</title>
+<script src="https://cdn.jsdelivr.net/npm/@mermaid-js/tiny@11/dist/mermaid.tiny.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f9f8f6;
+    --surface: #ffffff;
+    --surface-2: #f4f3f0;
+    --border: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1917;
+    --text-muted: #6b6a67;
+    --text-faint: #a09f9b;
+    --accent: #2a6af2;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: 'DM Sans', system-ui, sans-serif;
+    --serif: 'Lora', Georgia, serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141412;
+      --surface: #1e1d1b;
+      --surface-2: #252420;
+      --border: rgba(255,255,255,0.08);
+      --border-strong: rgba(255,255,255,0.15);
+      --text: #e8e6e1;
+      --text-muted: #9a9893;
+      --text-faint: #5a5956;
+      --accent: #5b8ef5;
+    }
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── App shell ── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Header ── */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; height: 48px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  #header-left { display: flex; align-items: center; gap: 10px; }
+  .logo {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
+    color: var(--text-muted); text-transform: uppercase;
+  }
+
+  .mode-tabs {
+    display: flex; gap: 2px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 3px; border-radius: var(--radius-sm);
+  }
+  .mode-tab {
+    font-size: 12px; padding: 4px 12px; border-radius: 4px;
+    border: none; background: none; cursor: pointer;
+    color: var(--text-muted); transition: all 0.15s;
+  }
+  .mode-tab:hover { color: var(--text); }
+  .mode-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  #header-right { display: flex; align-items: center; gap: 8px; }
+  .action-btn {
+    font-size: 12px; padding: 5px 12px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: none; cursor: pointer; color: var(--text-muted);
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .action-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  /* ── File tabs bar ── */
+  #file-tabs-bar {
+    display: none;
+    align-items: stretch;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #file-tabs-bar::-webkit-scrollbar { display: none; }
+  #file-tabs-bar.visible { display: flex; }
+
+  #file-tabs { display: flex; align-items: stretch; }
+
+  .file-tab {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 10px 0 14px;
+    height: 36px;
+    font-size: 12px; color: var(--text-muted);
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s;
+    max-width: 220px;
+    position: relative;
+    user-select: none;
+  }
+  .file-tab:hover { background: var(--surface); color: var(--text); }
+  .file-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 500;
+  }
+  .file-tab.active::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px; background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+  .file-tab-name {
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-tab-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-faint); font-size: 12px; line-height: 1;
+    padding: 2px 3px; border-radius: 3px;
+    flex-shrink: 0;
+    transition: color 0.12s, background 0.12s;
+  }
+  .file-tab-close:hover { color: var(--text); background: var(--border-strong); }
+
+  #btn-add-tab {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; flex-shrink: 0;
+    background: none; border: none; border-right: 1px solid var(--border);
+    cursor: pointer; color: var(--text-faint); font-size: 20px; font-weight: 300;
+    transition: color 0.12s, background 0.12s;
+  }
+  #btn-add-tab:hover { color: var(--text); background: var(--surface); }
+
+  /* ── Drop zone ── */
+  #drop-zone {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  #drop-zone:hover, #drop-zone.drag-over {
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+  #drop-zone input { display: none; }
+  .drop-icon {
+    width: 56px; height: 56px;
+    border: 1.5px solid var(--border-strong); border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint);
+  }
+  .drop-icon svg { width: 28px; height: 28px; }
+  .drop-title { font-size: 16px; font-weight: 500; color: var(--text); }
+  .drop-sub { font-size: 13px; color: var(--text-muted); }
+  .drop-hint {
+    font-size: 12px; color: var(--text-faint);
+    border: 1px dashed var(--border-strong); border-radius: 100px;
+    padding: 4px 14px;
+  }
+
+  /* ── Panes wrapper ── */
+  #panes-wrap {
+    flex: 1; display: none; flex-direction: column; overflow: hidden;
+    position: relative;
+  }
+  #panes-wrap.visible { display: flex; }
+
+  /* drag-over overlay when viewer is active */
+  #panes-wrap.drag-over::after {
+    content: 'ファイルを追加';
+    position: absolute; inset: 0;
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg) 90%);
+    border: 2px dashed var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 500; color: var(--accent);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* ── Panes ── */
+  #panes {
+    display: grid; flex: 1; overflow: hidden;
+  }
+  #panes.mode-split { grid-template-columns: 1fr 1fr; }
+  #panes.mode-source { grid-template-columns: 1fr; }
+  #panes.mode-preview { grid-template-columns: 1fr; }
+
+  .pane {
+    overflow-y: auto; overflow-x: hidden;
+    height: 100%;
+  }
+
+  /* source pane */
+  #source-pane {
+    font-family: var(--mono); font-size: 13px; line-height: 1.7;
+    padding: 1.5rem 1.75rem;
+    color: var(--text-muted);
+    white-space: pre-wrap; word-break: break-word;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+  }
+  #panes.mode-source #source-pane { border-right: none; }
+  #panes.mode-preview #source-pane { display: none; }
+  #panes.mode-source #preview-pane { display: none; }
+
+  /* preview pane */
+  #preview-pane {
+    padding: 2.5rem 3rem;
+    background: var(--surface);
+    max-width: 780px;
+  }
+  #panes.mode-preview #preview-pane { max-width: 100%; }
+
+  /* ── Markdown styles ── */
+  #preview-pane h1 {
+    font-family: var(--serif); font-size: 2em; font-weight: 700;
+    line-height: 1.3; margin: 0 0 1.2rem;
+    padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);
+  }
+  #preview-pane h2 {
+    font-size: 1.35em; font-weight: 600; margin: 2rem 0 0.75rem;
+    color: var(--text);
+  }
+  #preview-pane h3 { font-size: 1.1em; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  #preview-pane h4, #preview-pane h5, #preview-pane h6 {
+    font-size: 0.95em; font-weight: 600; margin: 1.2rem 0 0.4rem;
+    color: var(--text-muted);
+  }
+  #preview-pane p { margin: 0 0 1rem; }
+  #preview-pane ul, #preview-pane ol { margin: 0 0 1rem 1.6rem; }
+  #preview-pane li { margin-bottom: 0.3rem; }
+  #preview-pane li > ul, #preview-pane li > ol { margin-top: 0.3rem; margin-bottom: 0; }
+
+  #preview-pane code {
+    font-family: var(--mono); font-size: 0.85em;
+    background: var(--surface-2); padding: 2px 6px;
+    border-radius: 4px; border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  #preview-pane pre {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.2rem 1.4rem;
+    margin: 0 0 1.2rem; overflow-x: auto;
+  }
+  #preview-pane pre code {
+    background: none; border: none; padding: 0;
+    font-size: 13px; color: var(--text-muted);
+  }
+  #preview-pane blockquote {
+    border-left: 3px solid var(--border-strong);
+    padding: 0.2rem 1rem; margin: 0 0 1rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  #preview-pane table {
+    width: 100%; border-collapse: collapse; margin: 0 0 1.2rem;
+    font-size: 14px;
+  }
+  #preview-pane th, #preview-pane td {
+    border: 1px solid var(--border); padding: 8px 12px; text-align: left;
+  }
+  #preview-pane th {
+    background: var(--surface-2); font-weight: 600; font-size: 13px;
+  }
+  #preview-pane tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 50%, transparent); }
+  #preview-pane a { color: var(--accent); text-decoration: none; }
+  #preview-pane a:hover { text-decoration: underline; }
+  #preview-pane hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  #preview-pane img { max-width: 100%; border-radius: var(--radius); }
+  #preview-pane strong { font-weight: 600; }
+  #preview-pane em { font-style: italic; }
+  #preview-pane del { text-decoration: line-through; color: var(--text-muted); }
+
+  /* mermaid diagrams */
+  #preview-pane .mermaid {
+    margin: 0 0 1.2rem;
+    padding: 1.2rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex; justify-content: center; overflow-x: auto;
+  }
+  #preview-pane .mermaid svg { max-width: 100%; height: auto; }
+
+  /* status bar */
+  #statusbar {
+    display: none; align-items: center; justify-content: flex-end;
+    gap: 16px; padding: 0 20px; height: 28px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 11px; color: var(--text-faint);
+    flex-shrink: 0;
+  }
+  #statusbar.visible { display: flex; }
+
+  /* ── Print chrome (screen-hidden) ── */
+  #print-meta {
+    display: none;
+  }
+
+  /* ── Print: preview only, editorial document layout ── */
+  @media print {
+    :root {
+      --bg: #fff;
+      --surface: #fff;
+      --surface-2: #f3f2ef;
+      --border: #c8c6c0;
+      --border-strong: #8a8780;
+      --text: #1a1917;
+      --text-muted: #3d3c38;
+      --text-faint: #6b6a67;
+      --accent: #1a1917;
+    }
+
+    @page {
+      size: A4;
+      margin: 18mm 20mm 22mm;
+    }
+
+    * {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    #header,
+    #file-tabs-bar,
+    #statusbar,
+    #drop-zone {
+      display: none !important;
+    }
+
+    html {
+      font-size: 10.5pt;
+    }
+
+    html, body, #app {
+      height: auto;
+      overflow: visible;
+      background: #fff;
+      color: var(--text);
+    }
+
+    body {
+      font-family: Georgia, 'Times New Roman', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+      line-height: 1.65;
+    }
+
+    #panes-wrap.visible {
+      display: block !important;
+      flex: none;
+      overflow: visible;
+      position: static;
+    }
+
+    #panes-wrap.drag-over::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    #print-meta {
+      display: flex !important;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      max-width: 42rem;
+      margin: 0 auto 1.25rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 0.75pt solid var(--border-strong);
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 8.5pt;
+      letter-spacing: 0.02em;
+      color: var(--text-faint);
+    }
+
+    #print-filename {
+      font-weight: 600;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    #print-date {
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #panes,
+    #panes.mode-split,
+    #panes.mode-source,
+    #panes.mode-preview {
+      display: block !important;
+      grid-template-columns: none !important;
+      overflow: visible;
+      height: auto;
+    }
+
+    #source-pane {
+      display: none !important;
+    }
+
+    #preview-pane {
+      display: block !important;
+      box-sizing: border-box;
+      max-width: 42rem !important;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0;
+      background: #fff;
+      overflow: visible;
+      height: auto;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      orphans: 3;
+      widows: 3;
+    }
+
+    .pane {
+      overflow: visible;
+      height: auto;
+    }
+
+    #preview-pane h1 {
+      font-family: Georgia, 'Times New Roman', 'Hiragino Mincho ProN', serif;
+      font-size: 20pt;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0 0 1rem;
+      padding-bottom: 0.45rem;
+      border-bottom: 0.75pt solid var(--text);
+      color: var(--text);
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    #preview-pane h2 {
+      font-size: 13pt;
+      font-weight: 700;
+      margin: 1.35rem 0 0.55rem;
+      padding-top: 0.15rem;
+      color: var(--text);
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    #preview-pane h3 {
+      font-size: 11pt;
+      font-weight: 700;
+      margin: 1.1rem 0 0.4rem;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    #preview-pane h4,
+    #preview-pane h5,
+    #preview-pane h6 {
+      font-size: 10pt;
+      color: var(--text-muted);
+      margin: 0.9rem 0 0.35rem;
+    }
+
+    #preview-pane p {
+      margin: 0 0 0.65rem;
+      text-align: justify;
+      hyphens: auto;
+    }
+
+    #preview-pane ul,
+    #preview-pane ol {
+      margin: 0 0 0.75rem 1.35rem;
+      padding: 0;
+    }
+
+    #preview-pane li {
+      margin-bottom: 0.2rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane code {
+      font-family: var(--mono);
+      font-size: 0.88em;
+      background: var(--surface-2);
+      border: 0.5pt solid var(--border);
+      padding: 0.1em 0.35em;
+      border-radius: 2px;
+      color: var(--text);
+    }
+
+    #preview-pane pre {
+      background: var(--surface-2);
+      border: 0.5pt solid var(--border);
+      border-radius: 3px;
+      padding: 0.75rem 0.9rem;
+      margin: 0 0 0.85rem;
+      font-size: 8.5pt;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: inherit;
+      color: var(--text);
+    }
+
+    #preview-pane blockquote {
+      margin: 0 0 0.75rem;
+      padding: 0.15rem 0 0.15rem 0.9rem;
+      border-left: 2pt solid var(--border-strong);
+      color: var(--text-muted);
+      font-style: italic;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane blockquote p {
+      text-align: left;
+      margin-bottom: 0.35rem;
+    }
+
+    #preview-pane table {
+      width: 100%;
+      margin: 0 0 0.9rem;
+      font-size: 9pt;
+      line-height: 1.45;
+      border-collapse: collapse;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane th,
+    #preview-pane td {
+      border: 0.5pt solid var(--border);
+      padding: 0.35rem 0.55rem;
+      vertical-align: top;
+    }
+
+    #preview-pane th {
+      background: var(--surface-2) !important;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    #preview-pane tr:nth-child(even) td {
+      background: #faf9f7 !important;
+    }
+
+    #preview-pane a {
+      color: var(--text);
+      text-decoration: underline;
+      text-underline-offset: 0.12em;
+    }
+
+    #preview-pane a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 7.5pt;
+      color: var(--text-faint);
+      font-weight: 400;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    #preview-pane hr {
+      border: none;
+      border-top: 0.5pt solid var(--border);
+      margin: 1.25rem 0;
+    }
+
+    #preview-pane img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane strong {
+      font-weight: 700;
+    }
+
+    #preview-pane del {
+      color: var(--text-muted);
+    }
+
+    #preview-pane .mermaid {
+      margin: 0 0 0.9rem;
+      padding: 0.75rem;
+      background: #fff;
+      border: 0.5pt solid var(--border);
+      border-radius: 3px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #preview-pane pre,
+    #preview-pane table,
+    #preview-pane img,
+    #preview-pane .mermaid {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    #preview-pane h1,
+    #preview-pane h2,
+    #preview-pane h3,
+    #preview-pane h4 {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    #preview-pane h2 + p,
+    #preview-pane h3 + p,
+    #preview-pane h2 + ul,
+    #preview-pane h3 + ul,
+    #preview-pane h2 + ol,
+    #preview-pane h3 + ol {
+      break-before: avoid;
+      page-break-before: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="header">
+    <div id="header-left">
+      <span class="logo">MD Previewer</span>
+    </div>
+    <div class="mode-tabs" id="mode-tabs" style="display:none">
+      <button class="mode-tab" id="tab-source" onclick="setMode('source')">ソース</button>
+      <button class="mode-tab active" id="tab-split" onclick="setMode('split')">分割</button>
+      <button class="mode-tab" id="tab-preview" onclick="setMode('preview')">プレビュー</button>
+    </div>
+    <div id="header-right">
+      <button class="action-btn" id="btn-copy" style="display:none" onclick="copyRaw()">コピー</button>
+      <button class="action-btn" onclick="document.getElementById('file-input-h').click()">ファイルを開く</button>
+      <input type="file" id="file-input-h" accept=".md,.markdown,.txt" multiple style="display:none">
+    </div>
+  </header>
+
+  <div id="file-tabs-bar">
+    <div id="file-tabs"></div>
+    <button id="btn-add-tab" title="ファイルを追加" onclick="document.getElementById('file-input-add').click()">+</button>
+    <input type="file" id="file-input-add" accept=".md,.markdown,.txt" multiple style="display:none">
+  </div>
+
+  <div id="drop-zone">
+    <input type="file" id="file-input" accept=".md,.markdown,.txt" multiple>
+    <div class="drop-icon">
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="2" width="16" height="22" rx="2" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M16 2v7h4" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        <path d="M8 16h12M14 12v8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <p class="drop-title">.md ファイルをドロップ</p>
+    <p class="drop-sub">またはクリックして選択（複数可）</p>
+    <p class="drop-hint">.md &nbsp;·&nbsp; .markdown &nbsp;·&nbsp; .txt</p>
+  </div>
+
+  <div id="panes-wrap">
+    <header id="print-meta" aria-hidden="true">
+      <span id="print-filename"></span>
+      <time id="print-date"></time>
+    </header>
+    <div id="panes" class="mode-split">
+      <div class="pane" id="source-pane"></div>
+      <div class="pane" id="preview-pane"></div>
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <span id="stat-lines"></span>
+    <span id="stat-words"></span>
+    <span id="stat-size"></span>
+  </div>
+</div>
+
+<script>
+mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+
+let files = []; // [{ name, content, size }]
+let activeIdx = -1;
+let currentMode = 'split';
+
+const dropZone    = document.getElementById('drop-zone');
+const panesWrap   = document.getElementById('panes-wrap');
+const panes       = document.getElementById('panes');
+const sourcePan   = document.getElementById('source-pane');
+const previewPan  = document.getElementById('preview-pane');
+const statusbar   = document.getElementById('statusbar');
+const fileTabsBar = document.getElementById('file-tabs-bar');
+const fileTabsEl  = document.getElementById('file-tabs');
+
+// ── Drop on drop-zone ──
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  addFilesFromList(e.dataTransfer.files);
+});
+dropZone.addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', e => {
+  addFilesFromList(e.target.files);
+  e.target.value = '';
+});
+
+// ── Drop on panes (追加) ──
+panesWrap.addEventListener('dragover', e => { e.preventDefault(); panesWrap.classList.add('drag-over'); });
+panesWrap.addEventListener('dragleave', e => {
+  if (!panesWrap.contains(e.relatedTarget)) panesWrap.classList.remove('drag-over');
+});
+panesWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  panesWrap.classList.remove('drag-over');
+  addFilesFromList(e.dataTransfer.files);
+});
+
+// ── Header / add-tab inputs ──
+document.getElementById('file-input-h').addEventListener('change', e => {
+  addFilesFromList(e.target.files);
+  e.target.value = '';
+});
+document.getElementById('file-input-add').addEventListener('change', e => {
+  addFilesFromList(e.target.files);
+  e.target.value = '';
+});
+
+function addFilesFromList(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  const arr = Array.from(fileList).filter(f => /\.(md|markdown|txt)$/i.test(f.name));
+  if (!arr.length) return;
+
+  const startIdx = files.length;
+  let pending = arr.length;
+
+  // FileReader は非同期なので順序を保持しながら追加
+  const results = new Array(arr.length);
+  arr.forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      results[i] = { name: file.name, content: ev.target.result, size: file.size };
+      pending--;
+      if (pending === 0) {
+        results.forEach(r => files.push(r));
+        showViewer();
+        renderTabs();
+        switchTab(startIdx);
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+function showViewer() {
+  dropZone.style.display = 'none';
+  panesWrap.classList.add('visible');
+  fileTabsBar.classList.add('visible');
+  statusbar.classList.add('visible');
+  document.getElementById('mode-tabs').style.display = 'flex';
+  document.getElementById('btn-copy').style.display = '';
+  setMode(currentMode);
+}
+
+function renderTabs() {
+  fileTabsEl.innerHTML = '';
+  files.forEach((f, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'file-tab' + (i === activeIdx ? ' active' : '');
+    tab.innerHTML =
+      `<span class="file-tab-name" title="${escAttr(f.name)}">${escHtml(f.name)}</span>` +
+      `<button class="file-tab-close" title="閉じる">✕</button>`;
+    tab.addEventListener('click', e => {
+      if (!e.target.classList.contains('file-tab-close')) switchTab(i);
+    });
+    tab.querySelector('.file-tab-close').addEventListener('click', e => {
+      e.stopPropagation();
+      closeTab(i);
+    });
+    fileTabsEl.appendChild(tab);
+  });
+  const activeTab = fileTabsEl.querySelectorAll('.file-tab')[activeIdx];
+  if (activeTab) activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+}
+
+function switchTab(idx) {
+  if (idx < 0 || idx >= files.length) return;
+  activeIdx = idx;
+  const f = files[idx];
+  const lines = f.content.split('\n').length;
+  const words = f.content.trim().split(/\s+/).filter(Boolean).length;
+  const kb = (f.size / 1024).toFixed(1);
+
+  sourcePan.textContent = f.content;
+  previewPan.innerHTML = parseMarkdown(f.content);
+  document.title = `${f.name} — MD Previewer`;
+  const printFn = document.getElementById('print-filename');
+  const printDt = document.getElementById('print-date');
+  if (printFn) printFn.textContent = f.name;
+  if (printDt) {
+    const now = new Date();
+    printDt.dateTime = now.toISOString();
+    printDt.textContent = now.toLocaleDateString('ja-JP', {
+      year: 'numeric', month: 'long', day: 'numeric',
+    });
+  }
+  document.getElementById('stat-lines').textContent = `${lines} 行`;
+  document.getElementById('stat-words').textContent = `${words} 語`;
+  document.getElementById('stat-size').textContent = `${kb} KB`;
+
+  // render mermaid blocks if any
+  const mermaidNodes = previewPan.querySelectorAll('.mermaid');
+  if (mermaidNodes.length) mermaid.run({ nodes: mermaidNodes });
+
+  renderTabs();
+}
+
+function closeTab(idx) {
+  files.splice(idx, 1);
+  if (files.length === 0) {
+    resetViewer();
+    return;
+  }
+  let next = activeIdx;
+  if (idx < activeIdx) next = activeIdx - 1;
+  else if (idx === activeIdx) next = Math.min(idx, files.length - 1);
+  activeIdx = -1;
+  switchTab(next);
+}
+
+function setMode(m) {
+  currentMode = m;
+  panes.className = 'mode-' + m;
+  document.getElementById('tab-source').classList.toggle('active', m === 'source');
+  document.getElementById('tab-split').classList.toggle('active', m === 'split');
+  document.getElementById('tab-preview').classList.toggle('active', m === 'preview');
+}
+
+function copyRaw() {
+  if (activeIdx < 0 || activeIdx >= files.length) return;
+  navigator.clipboard.writeText(files[activeIdx].content).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = 'コピー済 ✓';
+    setTimeout(() => btn.textContent = 'コピー', 1800);
+  });
+}
+
+function resetViewer() {
+  files = [];
+  activeIdx = -1;
+  dropZone.style.display = 'flex';
+  panesWrap.classList.remove('visible');
+  fileTabsBar.classList.remove('visible');
+  statusbar.classList.remove('visible');
+  document.getElementById('mode-tabs').style.display = 'none';
+  document.getElementById('btn-copy').style.display = 'none';
+  fileTabsEl.innerHTML = '';
+  sourcePan.textContent = '';
+  previewPan.innerHTML = '';
+  document.title = 'MD Previewer';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return s.replace(/"/g, '&quot;');
+}
+
+// ── Markdown Parser ──
+function parseMarkdown(md) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // stash fenced code blocks (opening/closing ``` must be on their own line)
+  const blocks = [];
+  md = md.replace(/^```([^\n]*)\n([\s\S]*?)^```[ \t]*$/gm, (_, lang, code) => {
+    blocks.push({ lang: lang.trim(), code });
+    return '\x00BLK' + (blocks.length - 1) + '\x00';
+  });
+  // stash inline code (same-length backtick runs, e.g. `` ` ``)
+  const inlines = [];
+  md = md.replace(/(`+)([^`\n]+?)\1/g, (_, ticks, c) => {
+    inlines.push(c);
+    return '\x00INL' + (inlines.length - 1) + '\x00';
+  });
+
+  const lines = md.split('\n');
+  let html = '';
+  let inUl = false, inOl = false, bqLines = [], tableLines = [];
+
+  function flushUl() { if (inUl) { html += '</ul>'; inUl = false; } }
+  function flushOl() { if (inOl) { html += '</ol>'; inOl = false; } }
+  function flushBq() {
+    if (bqLines.length) {
+      html += '<blockquote>' + bqLines.map(l => `<p>${inline(l)}</p>`).join('') + '</blockquote>';
+      bqLines = [];
+    }
+  }
+  function flushTable() {
+    if (!tableLines.length) return;
+    html += '<table>';
+    tableLines.forEach((row, i) => {
+      if (i === 1) return; // separator
+      const cells = row.replace(/^\||\|$/g, '').split('|');
+      const tag = i === 0 ? 'th' : 'td';
+      html += '<tr>' + cells.map(c => `<${tag}>${inline(c.trim())}</${tag}>`).join('') + '</tr>';
+    });
+    html += '</table>';
+    tableLines = [];
+  }
+  function flushAll() { flushUl(); flushOl(); flushBq(); flushTable(); }
+
+  function inline(s) {
+    s = s.replace(/\x00INL(\d+)\x00/g, (_, i) => `<code>${esc(inlines[i])}</code>`);
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // code block
+    if (/\x00BLK\d+\x00/.test(line)) {
+      flushAll();
+      const idx = parseInt(line.match(/\x00BLK(\d+)\x00/)[1]);
+      const { lang, code } = blocks[idx];
+      if (lang === 'mermaid') {
+        html += `<div class="mermaid">${esc(code.replace(/\n$/, ''))}</div>`;
+      } else {
+        html += `<pre><code${lang ? ` class="language-${lang}"` : ''}>${esc(code.replace(/\n$/, ''))}</code></pre>`;
+      }
+      continue;
+    }
+
+    // table
+    if (/^\s*\|/.test(line)) {
+      flushUl(); flushOl(); flushBq();
+      tableLines.push(line.trim());
+      continue;
+    } else { flushTable(); }
+
+    // heading
+    const hm = line.match(/^(#{1,6})\s+(.*)/);
+    if (hm) {
+      flushAll();
+      const lvl = hm[1].length;
+      html += `<h${lvl}>${inline(esc(hm[2]))}</h${lvl}>`;
+      continue;
+    }
+
+    // hr
+    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(line.trim())) {
+      flushAll();
+      html += '<hr>';
+      continue;
+    }
+
+    // blockquote
+    if (/^>\s?/.test(line)) {
+      flushUl(); flushOl(); flushTable();
+      bqLines.push(esc(line.replace(/^>\s?/, '')));
+      continue;
+    } else { flushBq(); }
+
+    // unordered list
+    if (/^(\s*[-*+])\s/.test(line)) {
+      flushOl(); flushBq();
+      if (!inUl) { html += '<ul>'; inUl = true; }
+      html += `<li>${inline(esc(line.replace(/^\s*[-*+]\s/, '')))}</li>`;
+      continue;
+    }
+
+    // ordered list
+    if (/^\d+\.\s/.test(line)) {
+      flushUl(); flushBq();
+      if (!inOl) { html += '<ol>'; inOl = true; }
+      html += `<li>${inline(esc(line.replace(/^\d+\.\s/, '')))}</li>`;
+      continue;
+    }
+
+    // blank line
+    if (line.trim() === '') {
+      flushAll();
+      continue;
+    }
+
+    // paragraph
+    flushAll();
+    html += `<p>${inline(esc(line))}</p>`;
+  }
+
+  flushAll();
+  return html;
+}
+</script>
+</body>
+</html>

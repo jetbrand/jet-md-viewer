@@ -59,10 +59,16 @@
     background: var(--surface);
     flex-shrink: 0;
   }
-  #header-left { display: flex; align-items: center; gap: 10px; }
+  #header-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
   .logo {
     font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
     color: var(--text-muted); text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .privacy-note {
+    font-size: 11px; color: var(--text-faint); line-height: 1.35;
+    padding-left: 10px; border-left: 1px solid var(--border);
+    min-width: 0;
   }
 
   .mode-tabs {
@@ -650,6 +656,7 @@
   <header id="header">
     <div id="header-left">
       <span class="logo">MD Previewer</span>
+      <p class="privacy-note">読み込んだファイルは外部へ送信されません（ブラウザ内のみで処理）</p>
     </div>
     <div class="mode-tabs" id="mode-tabs" style="display:none">
       <button class="mode-tab" id="tab-source" onclick="setMode('source')">ソース</button>

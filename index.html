@@ -664,7 +664,7 @@
       <button class="mode-tab" id="tab-preview" onclick="setMode('preview')">プレビュー</button>
     </div>
     <div id="header-right">
-      <button class="action-btn" id="btn-copy" style="display:none" onclick="copyRaw()">コピー</button>
+      <button class="action-btn" id="btn-print" style="display:none" onclick="printPreview()">印刷</button>
       <button class="action-btn" onclick="document.getElementById('file-input-h').click()">ファイルを開く</button>
       <input type="file" id="file-input-h" accept=".md,.markdown,.txt" multiple style="display:none">
     </div>
@@ -791,7 +791,7 @@ function showViewer() {
   fileTabsBar.classList.add('visible');
   statusbar.classList.add('visible');
   document.getElementById('mode-tabs').style.display = 'flex';
-  document.getElementById('btn-copy').style.display = '';
+  document.getElementById('btn-print').style.display = '';
   setMode(currentMode);
 }
 
@@ -869,13 +869,17 @@ function setMode(m) {
   document.getElementById('tab-preview').classList.toggle('active', m === 'preview');
 }
 
-function copyRaw() {
+function printPreview() {
   if (activeIdx < 0 || activeIdx >= files.length) return;
-  navigator.clipboard.writeText(files[activeIdx].content).then(() => {
-    const btn = document.getElementById('btn-copy');
-    btn.textContent = 'コピー済 ✓';
-    setTimeout(() => btn.textContent = 'コピー', 1800);
-  });
+  const printDt = document.getElementById('print-date');
+  if (printDt) {
+    const now = new Date();
+    printDt.dateTime = now.toISOString();
+    printDt.textContent = now.toLocaleDateString('ja-JP', {
+      year: 'numeric', month: 'long', day: 'numeric',
+    });
+  }
+  window.print();
 }
 
 function resetViewer() {
@@ -886,7 +890,7 @@ function resetViewer() {
   fileTabsBar.classList.remove('visible');
   statusbar.classList.remove('visible');
   document.getElementById('mode-tabs').style.display = 'none';
-  document.getElementById('btn-copy').style.display = 'none';
+  document.getElementById('btn-print').style.display = 'none';
   fileTabsEl.innerHTML = '';
   sourcePan.textContent = '';
   previewPan.innerHTML = '';
